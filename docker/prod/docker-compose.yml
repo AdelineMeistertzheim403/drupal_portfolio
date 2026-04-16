@@ -3,41 +3,69 @@ version: '3.8'
 services:
   traefik:
     image: traefik:v3.0
+    restart: unless-stopped
     command:
       - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
-      - "--certificatesresolvers.letsencrypt.acme.email=tonmail@example.com"
+      - "--certificatesresolvers.letsencrypt.acme.email=${TRAEFIK_ACME_EMAIL}"
       - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./letsencrypt:/letsencrypt
+    networks:
+      - web
 
   drupal:
-    image: drupal:10-apache
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.drupal.rule=Host(`ton-domaine.fr`)"
-      - "traefik.http.routers.drupal.entrypoints=websecure"
-      - "traefik.http.routers.drupal.tls.certresolver=letsencrypt"
-    volumes:
-      - ../../drupal:/var/www/html
+    image: ${APP_IMAGE}:${APP_IMAGE_TAG}
+    restart: unless-stopped
     depends_on:
       - db
+    environment:
+      DRUPAL_DB_NAME: ${DRUPAL_DB_NAME}
+      DRUPAL_DB_USER: ${DRUPAL_DB_USER}
+      DRUPAL_DB_PASSWORD: ${DRUPAL_DB_PASSWORD}
+      DRUPAL_DB_HOST: ${DRUPAL_DB_HOST}
+      DRUPAL_DB_PORT: ${DRUPAL_DB_PORT}
+      DRUPAL_HASH_SALT: ${DRUPAL_HASH_SALT}
+      DRUPAL_ERROR_LEVEL: ${DRUPAL_ERROR_LEVEL}
+      DRUPAL_TWIG_DEBUG: ${DRUPAL_TWIG_DEBUG}
+      DRUPAL_TRUSTED_HOST: ${DRUPAL_TRUSTED_HOST}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.portfolio.rule=Host(`${TRAEFIK_DOMAIN}`)"
+      - "traefik.http.routers.portfolio.entrypoints=websecure"
+      - "traefik.http.routers.portfolio.tls=true"
+      - "traefik.http.routers.portfolio.tls.certresolver=letsencrypt"
+      - "traefik.http.services.portfolio.loadbalancer.server.port=80"
+    volumes:
+      - drupal_files:/var/www/html/web/sites/default/files
+    networks:
+      - web
+      - internal
 
   db:
     image: mysql:8
+    restart: unless-stopped
     environment:
-      MYSQL_DATABASE: drupal
-      MYSQL_USER: drupal
-      MYSQL_PASSWORD: drupal
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     volumes:
       - db_data:/var/lib/mysql
+    networks:
+      - internal
 
 volumes:
   db_data:
+  drupal_files:
+
+networks:
+  web:
+  internal:

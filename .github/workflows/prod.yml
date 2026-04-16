@@ -1,0 +1,189 @@
+name: CI/CD
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: drupal-portfolio-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docker-build:
+    name: Docker Build Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build application image
+        run: docker build -f Dockerfile .
+
+  compose:
+    name: Compose Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate production compose
+        run: docker compose --env-file .env.prod.example -f docker/prod/docker-compose.yml config
+
+  publish:
+    name: Publish Image To Private Registry
+    runs-on: ubuntu-latest
+    needs:
+      - docker-build
+      - compose
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Normalize registry configuration
+        id: registry
+        env:
+          REGISTRY_HOST_RAW: ${{ secrets.REGISTRY_HOST }}
+          REGISTRY_NAMESPACE_RAW: ${{ secrets.REGISTRY_NAMESPACE }}
+          REGISTRY_USERNAME_RAW: ${{ secrets.REGISTRY_USERNAME }}
+        run: |
+          normalize_host() {
+            printf '%s' "$1" | tr -d '\r' | sed -E 's#^[[:space:]]+##; s#[[:space:]]+$##; s#^https?://##; s#/$##'
+          }
+
+          normalize_value() {
+            printf '%s' "$1" | tr -d '\r' | sed -E 's#^[[:space:]]+##; s#[[:space:]]+$##'
+          }
+
+          REGISTRY_HOST="$(normalize_host "$REGISTRY_HOST_RAW")"
+          REGISTRY_NAMESPACE="$(normalize_value "$REGISTRY_NAMESPACE_RAW")"
+          REGISTRY_USERNAME="$(normalize_value "$REGISTRY_USERNAME_RAW")"
+
+          if [ -z "$REGISTRY_HOST" ] || [ -z "$REGISTRY_NAMESPACE" ] || [ -z "$REGISTRY_USERNAME" ]; then
+            echo "Registry secrets are incomplete after normalization."
+            exit 1
+          fi
+
+          printf 'host=%s\n' "$REGISTRY_HOST" >> "$GITHUB_OUTPUT"
+          printf 'namespace=%s\n' "$REGISTRY_NAMESPACE" >> "$GITHUB_OUTPUT"
+          printf 'username=%s\n' "$REGISTRY_USERNAME" >> "$GITHUB_OUTPUT"
+
+      - name: Check registry endpoint
+        run: |
+          HEADERS_FILE="$(mktemp)"
+          STATUS="$(curl -sS -D "$HEADERS_FILE" -o /dev/null -w '%{http_code}' "https://${{ steps.registry.outputs.host }}/v2/")"
+          sed -n '1,20p' "$HEADERS_FILE"
+
+          if grep -Eiq '^(server: cloudflare|cf-ray:)' "$HEADERS_FILE"; then
+            echo "The registry host appears to be behind Cloudflare. Docker registry traffic must bypass the Cloudflare proxy."
+            exit 1
+          fi
+
+          if [ "$STATUS" = "401" ] && ! grep -Eiq '^www-authenticate:' "$HEADERS_FILE"; then
+            echo "The registry returned 401 without a WWW-Authenticate header. The reverse proxy is not forwarding the registry authentication flow correctly."
+            exit 1
+          fi
+
+          if [ "$STATUS" != "200" ] && [ "$STATUS" != "401" ]; then
+            echo "Unexpected registry status from https://${{ steps.registry.outputs.host }}/v2/: $STATUS"
+            exit 1
+          fi
+
+      - name: Log in to private registry
+        env:
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        run: |
+          printf '%s' "$REGISTRY_PASSWORD" | tr -d '\r' | docker login "${{ steps.registry.outputs.host }}" -u "${{ steps.registry.outputs.username }}" --password-stdin
+
+      - name: Build and push application image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ steps.registry.outputs.host }}/${{ steps.registry.outputs.namespace }}/drupal-portfolio:${{ github.sha }}
+            ${{ steps.registry.outputs.host }}/${{ steps.registry.outputs.namespace }}/drupal-portfolio:main
+          cache-from: type=gha,scope=drupal-portfolio
+          cache-to: type=gha,mode=max,scope=drupal-portfolio
+
+  deploy:
+    name: Deploy To VPS
+    runs-on: ubuntu-latest
+    needs:
+      - publish
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare SSH
+        env:
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s' "$VPS_SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
+          printf '\n' >> ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s' "$VPS_SSH_KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
+          printf '\n' >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Sync project to VPS
+        env:
+          VPS_SSH_HOST: ${{ secrets.VPS_SSH_HOST }}
+          VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
+          VPS_SSH_USER: ${{ secrets.VPS_SSH_USER }}
+          VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
+        run: |
+          SSH_PORT="${VPS_SSH_PORT:-22}"
+          ssh -p "$SSH_PORT" "$VPS_SSH_USER@$VPS_SSH_HOST" "mkdir -p '$VPS_APP_DIR'"
+          rsync -az --delete \
+            --exclude ".git/" \
+            --exclude ".github/" \
+            --exclude ".codex" \
+            --exclude "drupal/vendor/" \
+            --exclude "drupal/web/sites/default/files/" \
+            --exclude ".env" \
+            -e "ssh -p $SSH_PORT" \
+            ./ "$VPS_SSH_USER@$VPS_SSH_HOST:$VPS_APP_DIR/"
+
+      - name: Upload production environment file
+        env:
+          PROD_ENV_FILE: ${{ secrets.PROD_ENV_FILE }}
+          VPS_SSH_HOST: ${{ secrets.VPS_SSH_HOST }}
+          VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
+          VPS_SSH_USER: ${{ secrets.VPS_SSH_USER }}
+          VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
+        run: |
+          SSH_PORT="${VPS_SSH_PORT:-22}"
+          printf '%s' "$PROD_ENV_FILE" | tr -d '\r' | ssh -p "$SSH_PORT" "$VPS_SSH_USER@$VPS_SSH_HOST" "cat > '$VPS_APP_DIR/.env' && printf '\n' >> '$VPS_APP_DIR/.env'"
+
+      - name: Deploy application on VPS
+        env:
+          REGISTRY_HOST: ${{ secrets.REGISTRY_HOST }}
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+          VPS_SSH_HOST: ${{ secrets.VPS_SSH_HOST }}
+          VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
+          VPS_SSH_USER: ${{ secrets.VPS_SSH_USER }}
+          VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
+        run: |
+          SSH_PORT="${VPS_SSH_PORT:-22}"
+          ssh -p "$SSH_PORT" "$VPS_SSH_USER@$VPS_SSH_HOST" "cd '$VPS_APP_DIR' && chmod +x scripts/deploy_prod.sh && REGISTRY_HOST='${REGISTRY_HOST}' REGISTRY_USERNAME='${REGISTRY_USERNAME}' REGISTRY_PASSWORD='${REGISTRY_PASSWORD}' APP_IMAGE_TAG='${{ github.sha }}' ./scripts/deploy_prod.sh"

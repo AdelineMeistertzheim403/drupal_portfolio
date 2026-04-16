@@ -19,12 +19,14 @@ temp/
 .env
 .env.*
 !.env.example
+!.env.prod.example
 
 # Git helper files
 *.orig
 
 # Docker local overrides
 docker-compose.override.yml
+docker/prod/letsencrypt/
 
 # Composer dependencies
 drupal/vendor/
