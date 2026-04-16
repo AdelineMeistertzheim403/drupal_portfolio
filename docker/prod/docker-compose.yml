@@ -16,11 +16,11 @@ services:
       DRUPAL_TRUSTED_HOST: ${DRUPAL_TRUSTED_HOST}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.portfolio.rule=Host(`${TRAEFIK_DOMAIN}`)"
-      - "traefik.http.routers.portfolio.entrypoints=websecure"
-      - "traefik.http.routers.portfolio.tls=true"
-      - "traefik.http.routers.portfolio.tls.certresolver=letsencrypt"
-      - "traefik.http.services.portfolio.loadbalancer.server.port=80"
+      - "traefik.http.routers.drupal-portfolio.rule=Host(`${TRAEFIK_DOMAIN}`)"
+      - "traefik.http.routers.drupal-portfolio.entrypoints=websecure"
+      - "traefik.http.routers.drupal-portfolio.tls=true"
+      - "traefik.http.routers.drupal-portfolio.tls.certresolver=letsencrypt"
+      - "traefik.http.services.drupal-portfolio.loadbalancer.server.port=80"
       - "traefik.docker.network=${TRAEFIK_NETWORK}"
     volumes:
       - drupal_files:/var/www/html/web/sites/default/files
