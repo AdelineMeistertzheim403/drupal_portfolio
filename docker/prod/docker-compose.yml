@@ -1,26 +1,4 @@
-version: '3.8'
-
 services:
-  traefik:
-    image: traefik:v3.0
-    restart: unless-stopped
-    command:
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
-      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
-      - "--certificatesresolvers.letsencrypt.acme.email=${TRAEFIK_ACME_EMAIL}"
-      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./letsencrypt:/letsencrypt
-    networks:
-      - web
-
   drupal:
     image: ${APP_IMAGE}:${APP_IMAGE_TAG}
     restart: unless-stopped
@@ -43,6 +21,7 @@ services:
       - "traefik.http.routers.portfolio.tls=true"
       - "traefik.http.routers.portfolio.tls.certresolver=letsencrypt"
       - "traefik.http.services.portfolio.loadbalancer.server.port=80"
+      - "traefik.docker.network=${TRAEFIK_NETWORK}"
     volumes:
       - drupal_files:/var/www/html/web/sites/default/files
     networks:
@@ -68,4 +47,6 @@ volumes:
 
 networks:
   web:
+    external: true
+    name: ${TRAEFIK_NETWORK}
   internal:

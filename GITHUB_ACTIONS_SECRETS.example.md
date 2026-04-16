@@ -82,8 +82,8 @@ Exemple de structure :
 APP_IMAGE=registry.adelinemeistertzheim.fr/adeline/drupal-portfolio
 APP_IMAGE_TAG=main
 
-TRAEFIK_ACME_EMAIL=contact@adelinemeistertzheim.fr
 TRAEFIK_DOMAIN=portfolioDP.adelinemeistertzheim.fr
+TRAEFIK_NETWORK=web
 
 DRUPAL_DB_NAME=drupal
 DRUPAL_DB_USER=drupal
@@ -109,3 +109,4 @@ DRUPAL_TRUSTED_HOST=portfolioDP.adelinemeistertzheim.fr
 - `VPS_SSH_PRIVATE_KEY` doit etre la cle privee complete, multi-ligne
 - `PROD_ENV_FILE` doit contenir des retours a la ligne normaux
 - `DRUPAL_DB_PASSWORD` et `MYSQL_PASSWORD` doivent etre identiques
+- `TRAEFIK_NETWORK` doit correspondre au reseau Docker externe utilise par le Traefik deja present sur le VPS
