@@ -1,6 +1,10 @@
-FROM composer:2 AS builder
+FROM composer:2 AS composer
+
+FROM drupal:11-apache AS builder
 
 WORKDIR /app
+
+COPY --from=composer /usr/bin/composer /usr/bin/composer
 
 COPY drupal/composer.json drupal/composer.lock ./
 RUN composer install \
