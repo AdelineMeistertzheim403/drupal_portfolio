@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  drupal:
+    image: drupal:11-apache
+    container_name: drupal_dev
+    ports:
+      - "8080:80"
+    volumes:
+      - ../../drupal:/opt/drupal
+      - ../../drupal/web:/var/www/html
+    depends_on:
+      - db
+
+  db:
+    image: mysql:8
+    container_name: drupal_db_dev
+    environment:
+      MYSQL_DATABASE: drupal
+      MYSQL_USER: drupal
+      MYSQL_PASSWORD: drupal
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - db_data:/var/lib/mysql
+
+volumes:
+  db_data:

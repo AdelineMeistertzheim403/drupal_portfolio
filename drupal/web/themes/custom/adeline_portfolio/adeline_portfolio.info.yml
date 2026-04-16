@@ -1,0 +1,8 @@
+name: Adeline Portfolio
+type: theme
+description: Thème portfolio custom Drupal
+core_version_requirement: ^11
+base theme: olivero
+
+libraries:
+  - adeline_portfolio/global-styling

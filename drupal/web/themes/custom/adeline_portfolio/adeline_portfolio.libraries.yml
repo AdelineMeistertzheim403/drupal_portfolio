@@ -1,0 +1,11 @@
+global-styling:
+  css:
+    theme:
+      css/style.css: {}
+
+project-carousel:
+  js:
+    js/project-carousel.js: {}
+  dependencies:
+    - core/drupal
+    - core/once

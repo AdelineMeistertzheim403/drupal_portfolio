@@ -1,0 +1,110 @@
+<article class="project-detail">
+  {{ attach_library('adeline_portfolio/project-carousel') }}
+  {% set image_count = node.field_img|length %}
+
+  <div class="project-detail-topbar">
+    <a
+      href="{{ path('<front>') }}"
+      class="project-back-link"
+      onclick="if (window.history.length > 1) { event.preventDefault(); window.history.back(); }"
+    >
+      Retour aux projets
+    </a>
+  </div>
+
+  <div class="project-detail-content">
+    <p class="project-kicker">Projet</p>
+
+    <h1>{{ label }}</h1>
+
+    <div class="technos">
+      {{ content.field_technologies }}
+    </div>
+
+    {% if content.field_resume %}
+      <section class="project-section project-summary">
+        <h2>Resume</h2>
+        {{ content.field_resume }}
+      </section>
+    {% endif %}
+
+    <div class="project-links">
+      {{ content.field_lien_github }}
+      {{ content.field_lien_demo }}
+    </div>
+
+    {% if content.field_description %}
+      <section class="project-section project-description">
+        <h2>Description</h2>
+        {{ content.field_description }}
+      </section>
+    {% endif %}
+
+    {% if image_count > 0 %}
+      <section class="project-section project-gallery">
+        <h2>Galerie</h2>
+        <div class="project-carousel" data-carousel>
+          <div class="project-carousel__viewport">
+            <div class="project-carousel__track" data-carousel-track>
+              {% for image_item in node.field_img %}
+                {% if image_item.entity %}
+                  <figure class="project-gallery-item project-carousel__slide{% if loop.first %} is-active{% endif %}" data-carousel-slide>
+                    <button
+                      type="button"
+                      class="project-carousel__image-button"
+                      data-carousel-open
+                      data-image-src="{{ file_url(image_item.entity.uri.value) }}"
+                      data-image-alt="{{ image_item.alt|default(label) }}"
+                      aria-label="Ouvrir l'image en grand"
+                    >
+                      <img
+                        src="{{ file_url(image_item.entity.uri.value) }}"
+                        alt="{{ image_item.alt|default(label) }}"
+                        loading="lazy"
+                      >
+                    </button>
+                  </figure>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+
+          {% if image_count > 1 %}
+            <div class="project-carousel__controls">
+              <button type="button" class="project-carousel__button" data-carousel-prev aria-label="Image precedente">
+                Precedente
+              </button>
+              <div class="project-carousel__dots" data-carousel-dots>
+                {% for image_item in node.field_img %}
+                  {% if image_item.entity %}
+                    <button
+                      type="button"
+                      class="project-carousel__dot{% if loop.first %} is-active{% endif %}"
+                      data-carousel-dot="{{ loop.index0 }}"
+                      aria-label="Aller a l'image {{ loop.index }}"
+                    ></button>
+                  {% endif %}
+                {% endfor %}
+              </div>
+              <button type="button" class="project-carousel__button" data-carousel-next aria-label="Image suivante">
+                Suivante
+              </button>
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="project-lightbox" data-lightbox hidden>
+          <button type="button" class="project-lightbox__close" data-lightbox-close aria-label="Fermer l'image">
+            Fermer
+          </button>
+          <div class="project-lightbox__backdrop" data-lightbox-close></div>
+          <div class="project-lightbox__content">
+            <img src="" alt="" data-lightbox-image>
+          </div>
+        </div>
+      </section>
+    {% endif %}
+
+  </div>
+
+</article>

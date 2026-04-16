@@ -1,0 +1,13 @@
+<a href="{{ path('entity.node.canonical', {'node': node.id}) }}" class="project-link-wrapper">
+  <article class="project-card">
+
+    <div class="project-content">
+      <p class="project-card-kicker">Projet</p>
+      <h2>{{ label }}</h2>
+
+      <div class="technos">
+        {{ content.field_technologies }}
+      </div>
+    </div>
+  </article>
+</a>

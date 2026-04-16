@@ -1,0 +1,65 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Local Codex / tooling noise
+.codex
+
+# Logs / temp
+*.log
+tmp/
+temp/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Git helper files
+*.orig
+
+# Docker local overrides
+docker-compose.override.yml
+
+# Composer dependencies
+drupal/vendor/
+
+# Drupal core and contrib managed by Composer
+drupal/web/core/
+drupal/web/modules/contrib/
+drupal/web/themes/contrib/
+drupal/web/profiles/contrib/
+drupal/web/libraries/
+
+# Drupal generated files and user uploads
+drupal/web/sites/*/files/
+drupal/web/sites/*/private/
+drupal/web/sites/*/tmp/
+
+# Keep placeholders if you add them later
+!drupal/web/sites/*/files/.gitkeep
+!drupal/web/sites/*/private/.gitkeep
+!drupal/web/sites/*/tmp/.gitkeep
+
+# Drupal local settings
+drupal/web/sites/*/settings.local.php
+drupal/web/sites/*/services.local.yml
+drupal/web/sites/*/development.services.yml
+
+# Drupal cache / generated PHP
+drupal/web/sites/*/php/
+
+# Front-end / node artifacts if added later
+node_modules/
+dist/
+build/
+.cache/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
